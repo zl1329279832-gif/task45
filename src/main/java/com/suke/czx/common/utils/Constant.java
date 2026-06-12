@@ -17,6 +17,10 @@ public class Constant {
     public static final String MOBILE_CODE_KEY = SYSTEM_NAME + "mobile:code:";
     public static final String AUTHENTICATION_TOKEN = SYSTEM_NAME + "token:";
 
+    public static final String SMS_TASK_LOCK = SYSTEM_NAME + "sms:task:lock:";
+    public static final String SMS_RATE_LIMIT = SYSTEM_NAME + "sms:rate:";
+    public static final String SMS_RETRY_LOCK = SYSTEM_NAME + "sms:retry:lock";
+
     public static final String TOKEN = "token";
     public static final String TOKEN_ENTRY_POINT_URL = "/token/login";
     public static final String TOKEN_LOGOUT_URL = "/token/logout";

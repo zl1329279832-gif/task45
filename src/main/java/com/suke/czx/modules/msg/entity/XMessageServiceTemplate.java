@@ -44,6 +44,10 @@ public class XMessageServiceTemplate extends TenancyBase implements Serializable
     @JsonProperty(value = "templateContent")
     public String templateContent;
 
+    @Schema(description = "模板编码")
+    @JsonProperty(value = "templateCode")
+    public String templateCode;
+
     @Schema(description = "模板类型（预留，比如验证码，营销）")
     @JsonProperty(value = "templateType")
     public String templateType;

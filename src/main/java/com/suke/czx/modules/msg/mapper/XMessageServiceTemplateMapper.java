@@ -22,4 +22,9 @@ public interface XMessageServiceTemplateMapper extends BaseMapper<XMessageServic
             "and t1.service_id = #{serviceId} and t2.is_enable = 1 limit 1;")
     XMessageServiceTemplate queryTemplate(@Param("templateId") Integer templateId,@Param("serviceId") Integer serviceId);
 
+    @Select("select * from x_message_service_template " +
+            "where template_code = #{templateCode} " +
+            "and tenancy_id = #{tenancyId} and is_enable = 1 limit 1")
+    XMessageServiceTemplate queryTemplateByCode(@Param("templateCode") String templateCode, @Param("tenancyId") String tenancyId);
+
 }

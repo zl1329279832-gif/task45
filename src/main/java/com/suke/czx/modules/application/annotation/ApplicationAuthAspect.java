@@ -24,6 +24,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class ApplicationAuthAspect {
 
+    /**
+     * 存放当前线程已认证的应用信息，供下游Controller/Service获取appId和tenancyId
+     */
+    public static final ThreadLocal<XApplication> CURRENT_APP = new ThreadLocal<>();
+
     @Resource
     public XApplicationService xApplicationService;
 
@@ -45,11 +50,14 @@ public class ApplicationAuthAspect {
         if (application == null) {
             throw new RRException("认证错误");
         }
+        // 将认证后的应用信息存入ThreadLocal，供下游使用
+        CURRENT_APP.set(application);
     }
 
 
     @After("queryMethod()")
     public void afterAdvice(JoinPoint joinPoint) {
-
+        // 清除ThreadLocal，防止虚拟线程复用时数据泄漏
+        CURRENT_APP.remove();
     }
 }

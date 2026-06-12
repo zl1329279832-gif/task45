@@ -484,6 +484,7 @@ CREATE TABLE `x_message_service_send_record_2025_08`  (
 DROP TABLE IF EXISTS `x_message_service_template`;
 CREATE TABLE `x_message_service_template`  (
   `template_id` int NOT NULL AUTO_INCREMENT COMMENT '模板ID',
+  `template_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '模板编码',
   `template_type` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '模板类型（预留，比如验证码，营销）',
   `template_content` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '模板内容',
   `is_enable` int NULL DEFAULT NULL COMMENT '是否启用，1启动，0禁用',
@@ -510,5 +511,36 @@ CREATE TABLE `x_message_service_template_config`  (
 -- ----------------------------
 -- Records of x_message_service_template_config
 -- ----------------------------
+
+-- ----------------------------
+-- Table structure for x_message_service_task
+-- ----------------------------
+DROP TABLE IF EXISTS `x_message_service_task`;
+CREATE TABLE `x_message_service_task`  (
+  `task_id` int NOT NULL AUTO_INCREMENT COMMENT '任务ID',
+  `request_no` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '业务请求号',
+  `app_id` int NULL DEFAULT NULL COMMENT '应用ID',
+  `tenancy_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '租户ID',
+  `template_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '模板编码',
+  `template_params` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '模板变量JSON',
+  `mobile` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '手机号',
+  `status` tinyint NOT NULL DEFAULT 0 COMMENT '状态:0待发送,1发送中,2成功,3失败,4已取消',
+  `fail_reason` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '失败原因',
+  `retry_count` int NOT NULL DEFAULT 0 COMMENT '已重试次数',
+  `max_retry` int NOT NULL DEFAULT 3 COMMENT '最大重试次数',
+  `next_retry_time` datetime NULL DEFAULT NULL COMMENT '下次重试时间',
+  `service_id` int NULL DEFAULT NULL COMMENT '使用的短信服务ID',
+  `send_content` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '实际发送内容',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`task_id`) USING BTREE,
+  UNIQUE INDEX `uk_request_mobile` (`request_no` ASC, `mobile` ASC) USING BTREE,
+  INDEX `idx_status_retry` (`status` ASC, `next_retry_time` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '短信发送任务' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- 增量SQL（已有数据库执行以下语句）
+-- ----------------------------
+-- ALTER TABLE `x_message_service_template` ADD COLUMN `template_code` varchar(64) NULL COMMENT '模板编码' AFTER `template_id`;
 
 SET FOREIGN_KEY_CHECKS = 1;
