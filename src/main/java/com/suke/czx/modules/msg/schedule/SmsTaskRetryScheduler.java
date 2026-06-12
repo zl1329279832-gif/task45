@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -34,11 +33,6 @@ public class SmsTaskRetryScheduler {
     private final XMessageServiceTaskMapper xMessageServiceTaskMapper;
     private final SmsTaskAsyncDispatcher dispatcher;
     private final RedissonLock redissonLock;
-
-    /**
-     * 指数退避时间（毫秒）: 1分钟, 5分钟, 30分钟
-     */
-    private static final long[] BACKOFF_MS = {60_000L, 300_000L, 1_800_000L};
 
     @Scheduled(fixedDelay = 120_000)
     public void retryFailedTasks() {
@@ -66,14 +60,14 @@ public class SmsTaskRetryScheduler {
             log.info("[SmsTaskRetryScheduler] 发现 {} 个待重试任务", tasks.size());
 
             for (XMessageServiceTask task : tasks) {
-                // 计算重试次数和退避时间
                 int retryCount = task.getRetryCount() + 1;
                 if (retryCount > task.getMaxRetry()) {
                     continue;
                 }
 
                 task.setRetryCount(retryCount);
-                task.setNextRetryTime(calculateBackoff(retryCount));
+                task.setStatus(1); // SENDING — 防止被重复捞取
+                task.setUpdateTime(new Date());
                 xMessageServiceTaskMapper.updateById(task);
 
                 // 异步重新发送
@@ -85,16 +79,6 @@ public class SmsTaskRetryScheduler {
         } finally {
             redissonLock.unlock(Constant.SMS_RETRY_LOCK);
         }
-    }
-
-    /**
-     * 计算指数退避的下一次重试时间
-     */
-    private Date calculateBackoff(int retryCount) {
-        int index = Math.min(retryCount - 1, BACKOFF_MS.length - 1);
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.MILLISECOND, (int) BACKOFF_MS[index]);
-        return cal.getTime();
     }
 
 }

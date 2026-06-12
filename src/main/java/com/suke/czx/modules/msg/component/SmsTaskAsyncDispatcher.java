@@ -38,6 +38,11 @@ public class SmsTaskAsyncDispatcher {
     private final XMessageServiceSendRecordMapper xMessageServiceSendRecordMapper;
 
     /**
+     * 指数退避时间（毫秒）: 1分钟, 5分钟, 30分钟
+     */
+    private static final long[] BACKOFF_MS = {60_000L, 300_000L, 1_800_000L};
+
+    /**
      * 异步批量发送短信任务
      */
     @Async
@@ -72,11 +77,24 @@ public class SmsTaskAsyncDispatcher {
             messageBody.setCode("");
             messageBody.setTemplate(task.getSendContent());
 
+            // 发送前检查任务是否已被取消
+            XMessageServiceTask freshState = xMessageServiceTaskMapper.selectById(task.getTaskId());
+            if (freshState == null || freshState.getStatus() == 4) {
+                log.info("[SmsTaskAsyncDispatcher] 任务已被取消，跳过发送: taskId={}", task.getTaskId());
+                task.setStatus(4);
+                task.setUpdateTime(new Date());
+                xMessageServiceTaskMapper.updateById(task);
+                return;
+            }
+
             boolean success = sendMessage.sendMessage(messageBody);
 
             // 4. 更新任务状态
             task.setStatus(success ? 2 : 3);
             task.setFailReason(success ? null : "短信发送失败");
+            if (!success && task.getRetryCount() < task.getMaxRetry()) {
+                task.setNextRetryTime(calculateNextRetryTime(task.getRetryCount()));
+            }
             task.setUpdateTime(new Date());
             xMessageServiceTaskMapper.updateById(task);
 
@@ -87,9 +105,20 @@ public class SmsTaskAsyncDispatcher {
             log.error("[SmsTaskAsyncDispatcher] 任务发送异常: taskId={}, error={}", task.getTaskId(), e.getMessage(), e);
             task.setStatus(3);
             task.setFailReason(e.getMessage());
+            if (task.getRetryCount() < task.getMaxRetry()) {
+                task.setNextRetryTime(calculateNextRetryTime(task.getRetryCount()));
+            }
             task.setUpdateTime(new Date());
             xMessageServiceTaskMapper.updateById(task);
         }
+    }
+
+    /**
+     * 根据当前重试次数计算下一次重试时间（指数退避）
+     */
+    private Date calculateNextRetryTime(int retryCount) {
+        int index = Math.min(retryCount, BACKOFF_MS.length - 1);
+        return new Date(System.currentTimeMillis() + BACKOFF_MS[index]);
     }
 
     /**
