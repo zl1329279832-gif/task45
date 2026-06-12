@@ -3,6 +3,7 @@ package com.suke.czx.modules.msg.component;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.suke.czx.common.utils.SpringContextUtils;
 import com.suke.czx.modules.msg.component.entity.MessageBody;
 import com.suke.czx.modules.msg.entity.XMessageService;
@@ -49,10 +50,16 @@ public class SmsTaskAsyncDispatcher {
 
     private void processTask(XMessageServiceTask task) {
         try {
-            // 1. 更新状态为"发送中"
-            task.setStatus(1);
-            task.setUpdateTime(new Date());
-            xMessageServiceTaskMapper.updateById(task);
+            // 1. CAS: PENDING(0) → SENDING(1)；若已被取消(4)则 CAS 失败，直接跳过
+            int casRows = xMessageServiceTaskMapper.update(null, Wrappers.<XMessageServiceTask>lambdaUpdate()
+                    .eq(XMessageServiceTask::getTaskId, task.getTaskId())
+                    .eq(XMessageServiceTask::getStatus, 0)    // 仅 PENDING 才能转 SENDING
+                    .set(XMessageServiceTask::getStatus, 1)
+                    .set(XMessageServiceTask::getUpdateTime, new Date()));
+            if (casRows == 0) {
+                log.info("[SmsTaskAsyncDispatcher] 任务已被取消或状态已变更，跳过发送: taskId={}", task.getTaskId());
+                return;
+            }
 
             // 2. 加载短信服务配置
             XMessageService service = xMessageServiceMapper.selectById(task.getServiceId());
@@ -74,21 +81,31 @@ public class SmsTaskAsyncDispatcher {
 
             boolean success = sendMessage.sendMessage(messageBody);
 
-            // 4. 更新任务状态
-            task.setStatus(success ? 2 : 3);
-            task.setFailReason(success ? null : "短信发送失败");
-            task.setUpdateTime(new Date());
-            xMessageServiceTaskMapper.updateById(task);
+            // 4. 发送后重新读取任务状态，检查是否在发送期间被取消
+            XMessageServiceTask current = xMessageServiceTaskMapper.selectById(task.getTaskId());
+            if (current != null && current.getStatus() == 4) {
+                // 任务在发送期间被取消，保留 CANCELLED 状态，不覆盖
+                log.info("[SmsTaskAsyncDispatcher] 任务在发送期间被取消，保留取消状态: taskId={}", task.getTaskId());
+                return;
+            }
 
-            // 5. 保存发送记录（复用现有逻辑）
+            // 5. 更新任务状态（只更新 status/failReason/updateTime，不覆盖 retryCount/nextRetryTime）
+            xMessageServiceTaskMapper.update(null, Wrappers.<XMessageServiceTask>lambdaUpdate()
+                    .eq(XMessageServiceTask::getTaskId, task.getTaskId())
+                    .set(XMessageServiceTask::getStatus, success ? 2 : 3)
+                    .set(XMessageServiceTask::getFailReason, success ? null : "短信发送失败")
+                    .set(XMessageServiceTask::getUpdateTime, new Date()));
+
+            // 6. 保存发送记录（复用现有逻辑）
             saveMessageRecord(task, service, success);
 
         } catch (Exception e) {
             log.error("[SmsTaskAsyncDispatcher] 任务发送异常: taskId={}, error={}", task.getTaskId(), e.getMessage(), e);
-            task.setStatus(3);
-            task.setFailReason(e.getMessage());
-            task.setUpdateTime(new Date());
-            xMessageServiceTaskMapper.updateById(task);
+            xMessageServiceTaskMapper.update(null, Wrappers.<XMessageServiceTask>lambdaUpdate()
+                    .eq(XMessageServiceTask::getTaskId, task.getTaskId())
+                    .set(XMessageServiceTask::getStatus, 3)
+                    .set(XMessageServiceTask::getFailReason, e.getMessage())
+                    .set(XMessageServiceTask::getUpdateTime, new Date()));
         }
     }
 

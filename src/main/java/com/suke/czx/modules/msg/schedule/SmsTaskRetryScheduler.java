@@ -66,18 +66,24 @@ public class SmsTaskRetryScheduler {
             log.info("[SmsTaskRetryScheduler] 发现 {} 个待重试任务", tasks.size());
 
             for (XMessageServiceTask task : tasks) {
-                // 计算重试次数和退避时间
                 int retryCount = task.getRetryCount() + 1;
                 if (retryCount > task.getMaxRetry()) {
                     continue;
                 }
 
-                task.setRetryCount(retryCount);
-                task.setNextRetryTime(calculateBackoff(retryCount));
-                xMessageServiceTaskMapper.updateById(task);
+                Date nextRetry = calculateBackoff(retryCount);
 
-                // 异步重新发送
-                dispatcher.dispatchAsync(List.of(task));
+                // 只更新 retryCount 和 nextRetryTime，不动 status，避免与 dispatcher 竞争
+                xMessageServiceTaskMapper.update(null, Wrappers.<XMessageServiceTask>lambdaUpdate()
+                        .eq(XMessageServiceTask::getTaskId, task.getTaskId())
+                        .set(XMessageServiceTask::getRetryCount, retryCount)
+                        .set(XMessageServiceTask::getNextRetryTime, nextRetry));
+
+                if (task.getNextRetryTime() != null) {
+                    // 已有调度时间且已到期（被查询条件过滤），可以 dispatch
+                    dispatcher.dispatchAsync(List.of(task));
+                }
+                // else: 首次安排退避，下一轮到期时再 dispatch
             }
 
         } catch (Exception e) {

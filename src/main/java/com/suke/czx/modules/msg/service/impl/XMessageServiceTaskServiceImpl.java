@@ -160,14 +160,14 @@ public class XMessageServiceTaskServiceImpl
     @Override
     public boolean cancelTask(String requestNo, XApplication app) {
         String tenancyId = app.getTenancyId();
-        // 将待发送状态(0)的任务更新为已取消(4)
+        // 将待发送(0)和发送中(1)的任务更新为已取消(4)
         XMessageServiceTask updateEntity = new XMessageServiceTask();
         updateEntity.setStatus(4);
         updateEntity.setUpdateTime(new Date());
         int updated = baseMapper.update(updateEntity, Wrappers.<XMessageServiceTask>lambdaUpdate()
                 .eq(XMessageServiceTask::getRequestNo, requestNo)
                 .eq(XMessageServiceTask::getTenancyId, tenancyId)
-                .eq(XMessageServiceTask::getStatus, 0));
+                .in(XMessageServiceTask::getStatus, 0, 1));
         return updated > 0;
     }
 
