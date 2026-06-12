@@ -45,6 +45,10 @@ public class ApplicationAuthAspect {
         if (application == null) {
             throw new RRException("认证错误");
         }
+        if (application.getIsEnable() == null || application.getIsEnable() != 1) {
+            throw new RRException("应用已禁用");
+        }
+        request.setAttribute("X_AUTHENTICATED_APP", application);
     }
 
 

@@ -31,6 +31,13 @@ public class Constant {
     public static final int CODE_SIZE = 4;
 
     /**
+     * 短信任务中心
+     */
+    public static final String SMS_RATE_LIMIT_KEY = SYSTEM_NAME + "sms:rate:";
+    public static final String SMS_IDEMPOTENT_KEY = SYSTEM_NAME + "sms:idempotent:";
+    public static final String X_AUTHENTICATED_APP = "X_AUTHENTICATED_APP";
+
+    /**
      * 菜单类型
      *
      * @author czx
